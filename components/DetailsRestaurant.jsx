@@ -5,6 +5,7 @@ import {
   SearchOutlined,
   EnvironmentOutlined,
   CloseOutlined,
+  CarOutlined
 } from "@ant-design/icons";
 import _ from "lodash";
 import request from "../utils/request";
@@ -32,6 +33,9 @@ import {
 import { setRestaurantData } from "../redux/actions/search";
 import { clearAction } from "../redux/actions/navigation";
 import { setInfoRestaurant } from "../redux/actions/navigation";
+import { parkingLotService } from "../services/parkingLotService";
+import goongjs from "goong-js";
+import { Button } from "antd";
 
 const DetailsRestaurant = (props) => {
   const [inputValue, setInputValue] = useState("");
@@ -40,6 +44,7 @@ const DetailsRestaurant = (props) => {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const inputRef = useRef(null);
   const [isTooltipVisible, setTooltipVisible] = useState(false);
+  const parkingMarkers = [];
 
   const toggleTooltip = () => {
     setTooltipVisible(!isTooltipVisible);
@@ -275,6 +280,50 @@ const DetailsRestaurant = (props) => {
 
   const iconColor = inputValue ? "#1a73e8" : "inherit";
 
+  const handleParkingClick = async () => {
+    try {
+      // Lấy vị trí hiện tại của map
+      const center = props.viewport;
+      
+      // Gọi API backend để lấy danh sách bãi đỗ xe gần đó
+      const response = await parkingLotService.getNearbyParkingLots(
+        center.latitude,
+        center.longitude,
+        2 // radiusKm
+      );
+
+      // Thêm markers cho các bãi đỗ xe
+      if (response && response.length > 0) {
+        response.forEach(lot => {
+          // Tạo marker cho mỗi bãi đỗ xe
+          const marker = new goongjs.Marker()
+            .setLngLat([lot.longitude, lot.latitude])
+            .setPopup(
+              new goongjs.Popup()
+                .setHTML(`
+                  <h3>${lot.name}</h3>
+                  <p>${lot.address}</p>
+                  <p>Chỗ trống: ${lot.availableSpots}/${lot.capacity}</p>
+                `)
+            )
+            .addTo(map);
+
+          // Lưu marker để có thể xóa sau này
+          parkingMarkers.push(marker);
+        });
+
+        // Zoom đến khu vực có bãi đỗ xe
+        map.fitBounds([
+          [Math.min(...response.map(lot => lot.longitude)), Math.min(...response.map(lot => lot.latitude))],
+          [Math.max(...response.map(lot => lot.longitude)), Math.max(...response.map(lot => lot.latitude))]
+        ], { padding: 50 });
+      }
+    } catch (error) {
+      console.error('Error fetching parking lots:', error);
+      message.error('Không thể tải danh sách bãi đỗ xe');
+    }
+  };
+
   return (
     <div className="content-servicedetails">
       <div className="id-omnibox-container">
@@ -450,6 +499,13 @@ const DetailsRestaurant = (props) => {
           </div>
         </div>
       </div>
+      <Button 
+        icon={<CarOutlined />}
+        onClick={handleParkingClick}
+        className="parking-button"
+      >
+        Điểm đỗ xe
+      </Button>
     </div>
   );
 };
@@ -470,6 +526,7 @@ const mapStateToProps = (state) => ({
   latLngCenter: state.placeReducer.center,
   openHistory: state.searchReducer.search_history,
   searchData: state.searchReducer.search_data,
+  viewport: state.placeReducer.viewport,
 });
 
 export default connect(mapStateToProps)(DetailsRestaurant);

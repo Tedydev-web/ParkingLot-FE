@@ -1,4 +1,4 @@
-import React, { Component } from 'react';
+import React, { Component, useEffect } from 'react';
 import { STYLE_URL } from '../consts';
 import Marker from './Marker';
 import { connect } from 'react-redux';
@@ -21,7 +21,8 @@ import Request from '../utils/request';
 import { Mile_Travel } from '../consts';
 import { isMobile } from 'react-device-detect';
 import images from '../utils/images';
-// import { STYLE_KEY } from "../config.dev";
+import { useDispatch, useSelector } from 'react-redux';
+import { getParkingLotsRequest } from '../redux/actions/parkingLot';
 
 class Map extends Component {
 	constructor(props) {
@@ -37,12 +38,14 @@ class Map extends Component {
 			styleEarth: STYLE_URL.SATELITE + STYLE_KEY,
 			bottomInfoVisible: false,
 			value: localStorage.getItem('search_history') || '',
+			parkingLots: [],
 		};
 		this.list = [];
 		this.listRestaurant = [];
 		this.listHistories = [];
 		this.view = null;
 		this.navigationView = null;
+		this.markers = [];
 	}
 
 	_onViewportChange = (viewport) => {
@@ -996,6 +999,10 @@ class Map extends Component {
 				this.list = [];
 			}
 		}
+
+		if (prevProps.parkingLots !== this.props.parkingLots) {
+			this.renderParkingLots();
+		}
 	}
 
 	decodePolyline(encoded) {
@@ -1188,6 +1195,9 @@ class Map extends Component {
 				}
 			}
 		}
+
+		// Fetch parking lots
+		this.props.dispatch(getParkingLotsRequest());
 	}
 
 	navigationByURLIframe = async (from, to) => {
@@ -1231,6 +1241,7 @@ class Map extends Component {
 	componentWillUnmount() {
 		window.removeEventListener('storage', this.handleStorageChange);
 		document.body.removeEventListener('click', this._onClickMenu);
+		this.clearMarkers();
 	}
 
 	handleStorageChange = (event) => {
@@ -1240,13 +1251,72 @@ class Map extends Component {
 		}
 	};
 
+	clearMarkers = () => {
+		this.markers.forEach((marker) => marker.remove());
+		this.markers = [];
+	};
+
+	renderParkingLots = () => {
+		const { parkingLots } = this.props;
+
+		this.clearMarkers();
+
+		parkingLots?.forEach((lot) => {
+			// Tạo element cho marker
+			const el = document.createElement('div');
+			el.className = 'marker parking-marker';
+			el.innerHTML = `
+				<div class="marker-content">P</div>
+				<div class="marker-info">
+					<h3>${lot.name}</h3>
+					<p>${lot.address}</p>
+					<p>Available: ${lot.availableSpots}/${lot.capacity}</p>
+				</div>
+			`;
+
+			// Tạo marker và thêm vào map
+			const marker = new maplibregl.Marker(el).setLngLat([lot.longitude, lot.latitude]).addTo(this.map);
+
+			// Thêm sự kiện click
+			el.addEventListener('click', () => {
+				this.handleParkingLotClick(lot);
+			});
+
+			// Lưu marker để có thể xóa sau này
+			this.markers.push(marker);
+		});
+	};
+
+	handleParkingLotClick = (lot) => {
+		// Zoom đến vị trí parking lot
+		this.map.flyTo({
+			center: [lot.longitude, lot.latitude],
+			zoom: 15,
+		});
+
+		// Hiển thị thông tin
+		this.setState({
+			bottomInfoVisible: true,
+			placeMouseClick: {
+				name: lot.name,
+				formatted_address: lot.address,
+				geometry: {
+					location: {
+						lat: lot.latitude,
+						lng: lot.longitude,
+					},
+				},
+			},
+		});
+	};
+
 	render() {
 		const { style, bottomInfoVisible, placeMouseClick } = this.state;
 
 		return (
 			<React.Fragment>
 				<Div100vh>
-					<div id="map"></div>
+					<div id="map" />
 					<div>
 						{!isMobile && (
 							<Avatar
@@ -1285,6 +1355,41 @@ class Map extends Component {
 						/>
 					)}
 				</Div100vh>
+				<style jsx>{`
+					.parking-marker {
+						cursor: pointer;
+					}
+
+					.marker-content {
+						background: #1890ff;
+						color: white;
+						border-radius: 50%;
+						width: 32px;
+						height: 32px;
+						display: flex;
+						align-items: center;
+						justify-content: center;
+						font-weight: bold;
+					}
+
+					.marker-info {
+						display: none;
+						position: absolute;
+						bottom: 100%;
+						left: 50%;
+						transform: translateX(-50%);
+						background: white;
+						padding: 8px;
+						border-radius: 4px;
+						box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+						min-width: 200px;
+						z-index: 1;
+					}
+
+					.parking-marker:hover .marker-info {
+						display: block;
+					}
+				`}</style>
 			</React.Fragment>
 		);
 	}
@@ -1310,6 +1415,7 @@ const mapStateToProps = (state) => {
 		my_location: state.placeReducer.my_location,
 		restaurantData: state.searchReducer.restaurant_data,
 		searchLocalStorage: state.searchReducer.search_local_storage,
+		parkingLots: state.parkingLotReducer.parkingLots,
 	};
 };
 export default connect(mapStateToProps)(Map);

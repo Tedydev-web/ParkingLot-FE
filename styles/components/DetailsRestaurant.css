@@ -1,0 +1,41 @@
+.parking-button {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    background-color: #fff;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+.parking-button:hover {
+    background-color: #f5f5f5;
+}
+
+.parking-marker {
+    width: 32px;
+    height: 32px;
+    background-color: #ff4d4f;
+    border-radius: 50%;
+    border: 2px solid #fff;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    cursor: pointer;
+}
+
+.parking-popup {
+    max-width: 300px;
+    padding: 16px;
+}
+
+.parking-popup h3 {
+    margin: 0 0 8px;
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.parking-popup p {
+    margin: 4px 0;
+    font-size: 14px;
+} 
